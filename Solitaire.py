@@ -27,6 +27,8 @@ class Card:
         self.suit = suit
         self.image = image
         self.rect = self.image.get_rect()
+        self.faceUp = True
+        self.draggable = True
 
     def handleMouseDown(self):
         # check is cursor is inside card
@@ -54,13 +56,23 @@ class Card:
         Card.prevMouseX = mouseX
         Card.prevMouseY = mouseY 
 
+    def handleMouseUp(self, pile):
+        # check the last card of each pile
+        # if near a valid card, attach to it
+        if self.rect.x < pile[-2].rect.x + 0.5 * pile[-2].rect.w and self.rect.x > pile[-2].rect.x - 0.5 * pile[-2].rect.w: 
+            if self.rect.y < pile[-2].rect.y + 0.5 * pile[-2].rect.h and self.rect.y > pile[-2].rect.y - 0.5 * pile[-2].rect.h: 
+                self.rect.x = pile[-2].rect.x
+                self.rect.y = pile[-2].rect.y + 40
+
+        Card.held = None
+
     def draw(self, screen):
         # draws image onto rect surface
         screen.blit(self.image, self.rect)
 
 # set card properties
 size = width, height = 1300, 750
-cardSize = width, height = 110, 160
+cardSize = width, height = 95, 140
 darkGreen = 50, 122, 14
 imagePath = "PNG-cards"
 suits = ("clubs", "diamonds", "hearts", "spades")
@@ -80,9 +92,13 @@ Card.cardback = loadImage(f"{imagePath}/cardback.png", cardSize)
 screen = pygame.display.set_mode(size)
 clock = pygame.time.Clock()
 
+# testing
 cards[50].rect.x, cards[50].rect.y = 700, 500
+cards[24].rect.x, cards[24].rect.y = 300, 200
 cards[5].rect.x, cards[5].rect.y = 200, 500
-cards[5].image = Card.cardback
+
+# pile test
+pile = [cards[50], cards[5], cards[24]]
 
 # main game loop
 while True:
@@ -91,19 +107,18 @@ while True:
         if event.type == pygame.QUIT: 
             sys.exit()
         if event.type == pygame.MOUSEBUTTONDOWN:
-            cards[51].handleMouseDown()
-            cards[50].handleMouseDown()
-            cards[5].handleMouseDown()
+            for card in pile:
+                if card.draggable: 
+                    card.handleMouseDown()
         if event.type == pygame.MOUSEMOTION and Card.held:
             Card.held.handleMouseMotion()
         if event.type == pygame.MOUSEBUTTONUP and Card.held:
-            Card.held = None
+            Card.held.handleMouseUp(pile)
 
-    # Handle mouse left click events
+    # Draw all assets
     screen.fill(darkGreen)
-    cards[51].draw(screen)
-    cards[50].draw(screen)
-    cards[5].draw(screen)
+    for card in pile:
+        card.draw(screen)
     pygame.display.flip()
 
     clock.tick(60)
