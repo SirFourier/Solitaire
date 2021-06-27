@@ -14,6 +14,7 @@ def loadImage(path, newSize=None):
         image = pygame.transform.scale(image, newSize)
     return image
 
+# ----------------creating card and pile classes--------------------#
 # card class containing image, position, and size data
 class Card:
     # set global card attributes
@@ -22,25 +23,28 @@ class Card:
     suits = ("clubs", "diamonds", "hearts", "spades")
 
     # set cardback image
-    cardback = loadImage(f"{imagePath}/cardback.png", size)
+    cardbackImage = loadImage(f"{imagePath}/cardback.png", size)
 
     def __init__(self, number, suit):
         self.number = number
         self.suit = suit
         self.image = loadImage(f"{Card.imagePath}/{number}_of_{suit}.png", Card.size)
         self.rect = self.image.get_rect()
-        self.faceUp = True
-        self.draggable = True
+        self.faceUp = False
+        self.draggable = False
         
     def draw(self, screen):
-        # draws image onto rect surface
-        screen.blit(self.image, self.rect)
+        # draws image or cardback depending if face up or not
+        image = self.cardbackImage
+        if self.faceUp:
+            image = self.image
+        screen.blit(image, self.rect)
 
 # pile class containing cards
 class Pile:
     # pile spacing for where to place them on the screen
     cardSpacing = 36
-    pileSpacing = 120
+    pileSpacing = 140
 
     def __init__(self, pile, posX, posY):
         self.posX = posX
@@ -48,7 +52,7 @@ class Pile:
         self.pile = pile 
 
     def update(self):
-        # update positions of the cards based on the first card
+        # update positions of the cards
         for index, card in enumerate(self.pile):
             card.rect.x = self.posX
             card.rect.y = self.posY + Pile.cardSpacing * index
@@ -57,41 +61,48 @@ class Pile:
         for card in self.pile:
             card.draw(screen)
 
-
-class MovingPile(Pile):
 # When pile is being dragged by cursor
-
+class MovingPile(Pile):
+    # inherit pile class
     def __init__(self):
         Pile.__init__(self, pile=[], posX=0, posY=0)
+        # keep track of mouse positions
         self.prevMouseX = 0
         self.prevMouseY = 0
+        # keep track of previous pile object
         self.previousPile = None
 
     def handleMouseDown(self, pile):
         # check is cursor is inside card
         mouseX, mouseY = pygame.mouse.get_pos()
 
-        # check if cursor is inside any of the cards in the pile
+        # check if cursor is inside any of the cards in the pile (starting from last card)
         for index, card in reversed(list(enumerate(pile.pile))):
-            
             # if mouse is inside card
-            if card.rect.collidepoint(mouseX, mouseY): 
+            if card.rect.collidepoint(mouseX, mouseY) and card.draggable: 
                 # partition pile into moving pile
                 self.pile = pile.pile[index:]
                 pile.pile = pile.pile[:index]
                 self.previousPile = pile
                 
+                # set moving pile position to the same as the card
+                self.posX = card.rect.x
+                self.posY = card.rect.y
+
+                # track position of mouse
                 self.prevMouseX = mouseX
                 self.prevMouseY = mouseY
+
                 return
 
     def handleMouseMotion(self):
         # move card with cursor if held
         mouseX, mouseY = pygame.mouse.get_pos()
-
-        for card in self.pile:
-            # move card to new position based on previous and current mouse position
-            card.rect.move_ip(mouseX - self.prevMouseX, mouseY - self.prevMouseY)
+        
+        # move pile based on previous position of mouse
+        self.posX += mouseX - self.prevMouseX
+        self.posY += mouseY - self.prevMouseY
+        self.update()
 
         self.prevMouseX = mouseX
         self.prevMouseY = mouseY
@@ -101,13 +112,14 @@ class MovingPile(Pile):
         self.previousPile.pile.extend(self.pile)
         self.previousPile.update()
         
-        # reset held card/pile held
+        # clear held card/pile held
         self.pile.clear()
 
-# set screen properties
+# ------------------------set screen properties--------------------------#
 screenSize = width, height = 1100, 800
 darkGreen = 50, 122, 14 # for background
 
+# ---------------------------setting up deck-----------------------------#
 # create deck
 deck = []
 for suit in Card.suits:
@@ -118,14 +130,28 @@ for suit in Card.suits:
 # shuffle deck
 random.shuffle(deck)
 
+# ----------------------setting up the tableau-------------------------#
 # create 7 piles from shuffled deck
 piles = []
-pilePosX = 100
+pilePosX = 80
 pilePosY = 100
-for _ in range(7):
+numberOfPiles = 7
+numberOfCards = 1
+for pileNumber in range(numberOfPiles):
+    # keep track of how many face downs have been placed
+    faceDownCounter = 0
+    # create new pile object
     newPile = Pile([], pilePosX, pilePosY)
-    for _ in range(5):
+
+    # iterate through pile of cards
+    for cardNumber in range(numberOfCards):
         card = deck.pop()
+
+        # turn card face up if card number is greater or equal to pile number
+        if cardNumber >= pileNumber:
+            card.faceUp = True
+            card.draggable = True
+        
         newPile.pile.append(card)
 
     # update positions of cards based on position of the pile
@@ -135,6 +161,9 @@ for _ in range(7):
     # move position of next pile in the x direction
     pilePosX += Pile.pileSpacing
 
+    # next pile has 1 more card
+    numberOfCards += 1
+
 # create a moving pile (intially empty)
 movingPile = MovingPile()
 
@@ -142,7 +171,7 @@ movingPile = MovingPile()
 screen = pygame.display.set_mode(screenSize)
 clock = pygame.time.Clock()
 
-# main game loop
+# ---------------------------main game loop------------------------------#
 while True:
     # Handle events
     for event in pygame.event.get():
