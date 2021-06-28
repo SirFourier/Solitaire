@@ -14,7 +14,7 @@ def loadImage(path, newSize=None):
         image = pygame.transform.scale(image, newSize)
     return image
 
-# ----------------creating card and pile classes--------------------#
+# --------------------creating card and pile classes---------------------#
 # card class containing image, position, and size data
 class Card:
     # set global card attributes
@@ -62,7 +62,7 @@ class Card:
 
 # pile class containing cards
 class Pile:
-    # pile spacing for where to place them on the screen
+    # pile and card spacing for where to place them on the screen
     cardSpacing = 36
     pileSpacing = 140
 
@@ -91,6 +91,60 @@ class Pile:
             # draw empty pile image
             screen.blit(Pile.emptyPileImage, self.emptyPileRect)
 
+
+# Contains the remaining cards after setting up the tableau
+class StockPile(Pile):
+
+    def update(self):
+        # update positions of the cards
+        for card in self.pile:
+            card.faceUp = False
+            card.rect.x = self.posX
+            card.rect.y = self.posY
+
+# Contains the card(s) pulled from the stock
+class WastePile(Pile):
+    # move cards to waste pile when mouse button is pressed
+    def handleMouseDown(self, stockPile):
+        # get mouse position
+        mouseX, mouseY = pygame.mouse.get_pos()
+        
+        if stockPile.emptyPileRect.collidepoint(mouseX, mouseY): 
+            if stockPile.pile:
+                # move top card into waste pile
+                self.pile.append(stockPile.pile.pop())
+                self.pile[-1].faceUp = True
+                self.update()
+
+                # track position of mouse
+                self.prevMouseX = mouseX
+                self.prevMouseY = mouseY
+            else:
+                # return waste pile to stock pile
+                self.pile.reverse()
+                stockPile.pile = self.pile.copy()
+                self.pile.clear()
+
+                stockPile.update()
+                self.update()
+
+    # overwrite update method
+    def update(self):
+        # update positions of the cards
+        for card in self.pile:
+            card.faceUp = True
+            card.rect.x = self.posX
+            card.rect.y = self.posY
+
+# completing 4 of these piles (1 for each suit) will win the game
+# Foundation pile
+class FoundationPile(WastePile):
+    # overwrite update method
+    def update(self):
+        # update positions of the cards
+        for card in self.pile:
+            card.rect.x = self.posX
+            card.rect.y = self.posY
 
 # When pile is being dragged by cursor
 class MovingPile(Pile):
@@ -139,47 +193,58 @@ class MovingPile(Pile):
         self.prevMouseY = mouseY
 
     def handleMouseUp(self, piles):
-        # if no pile selected, return moving pile to previous 
-        pileSelected = False
+        # assume no valid pile selected
+        pileSelected = None
         
         # check if valid pile
         for pile in piles: 
             if pile.pile:
                 # check if pile overlaps with card
                 if self.pile[0].rect.colliderect(pile.pile[-1].rect):
-                    # check if opposite colours
-                    if Card.oppositeColour(self.pile[0], pile.pile[-1]):
-                        # check if last card of stationary pile is valued 1 more
-                        if Card.validNumber(pile.pile[-1], self.pile[0]):
-                            # Extend the stationary pile with the moving pile
-                            pile.pile.extend(self.pile)
-                            pile.update()
-                            pileSelected = True
-
-                            # if there is a pile in the previous pile
-                            if self.previousPile.pile:
-                                # flip the last card face up
-                                self.previousPile.pile[-1].faceUp = True
-
-                            break
+                    # if moving pile contains only 1 card and pile is foundaiton pile
+                    if len(self.pile) == 1 and type(pile) is FoundationPile:
+                        # if the same same suit
+                        if self.pile[0].suit == pile.pile[-1].suit:
+                            # if moving card valued 1 higher than top foundation card
+                            if self.pile[0].number == pile.pile[-1].number + 1:
+                                pileSelected = pile
+                                break
+                    # else normal pil 
+                    else:
+                        # check if opposite colours
+                        if Card.oppositeColour(self.pile[0], pile.pile[-1]):
+                            # check if last card of stationary pile is valued 1 more
+                            if Card.validNumber(pile.pile[-1], self.pile[0]):
+                                pileSelected = pile
+                                break
 
             # else if empty pile overlaps
             elif self.pile[0].rect.colliderect(pile.emptyPileRect):
-                # only a king can be placed in empty pile
-                if self.pile[0].number == 13:
-                    # add moving pile to empty pile
-                    pile.pile.extend(self.pile)
-                    pile.update()
-                    pileSelected = True
+                # if type is foundaiton pile
+                if type(pile) is FoundationPile:
+                    # if the moving card is an ace
+                    if self.pile[0].number == 1:
+                        # add card to foundation pile
+                        pileSelected = pile
+                        break
+                # else it's a normal pile
+                else:
+                    # only a king can be placed in empty pile
+                    if self.pile[0].number == 13:
+                        pileSelected = pile
+                        break
 
-                    # if there is a pile in the previous pile
-                    if self.previousPile.pile:
-                        # flip the last card face up
-                        self.previousPile.pile[-1].faceUp = True
+        if pileSelected:
+            # Extend the stationary pile with the moving pile
+            pile.pile.extend(self.pile)
+            pile.update()
+            pileSelected = pile
 
-                    break
-
-        if not pileSelected:
+            # if there is a pile in the previous pile
+            if self.previousPile.pile and not self.previousPile.pile[-1].faceUp:
+                # flip the last card face up
+                self.previousPile.pile[-1].faceUp = True
+        else:
             # return the moving pile to the previous pile
             self.previousPile.pile.extend(self.pile)
             self.previousPile.update()
@@ -187,68 +252,14 @@ class MovingPile(Pile):
         # clear held card/pile held
         self.pile.clear()
 
+    # overwrite update method
     def draw(self, screen):
         # create seperate draw method to avoid drawing empty card slot
         if self.pile:
             Pile.draw(self, screen)
 
-# Contains the remaining cards after setting up the tableau
-class StockPile(Pile):
-
-    def update(self):
-        # update positions of the cards
-        for card in self.pile:
-            card.faceUp = False
-            card.rect.x = self.posX
-            card.rect.y = self.posY
-
-# Contains the card(s) pulled from the stock
-class WastePile(Pile):
-
-    def handleMouseDown(self, stockPile):
-        # get mouse position
-        mouseX, mouseY = pygame.mouse.get_pos()
-        
-        if stockPile.pile:
-            if stockPile.pile[-1].rect.collidepoint(mouseX, mouseY): 
-                # move top card into waste pile
-                self.pile.append(stockPile.pile.pop())
-                self.pile[-1].faceUp = True
-                self.update()
-
-                # track position of mouse
-                self.prevMouseX = mouseX
-                self.prevMouseY = mouseY
-        else:
-            # return waste pile to stock pile
-            self.pile.reverse()
-            stockPile.pile = self.pile.copy()
-            self.pile.clear()
-
-            stockPile.update()
-            self.update()
-
-    def update(self):
-        # update positions of the cards
-        for card in self.pile:
-            card.rect.x = self.posX
-            card.rect.y = self.posY
-
-
-# completing 4 of these piles (1 for each suit) will win the game
-# Foundation pile
-class FoundationPile(WastePile):
-
-    def update(self):
-        # update positions of the cards
-        for card in self.pile:
-            card.rect.x = self.posX
-            card.rect.y = self.posY
-
-    
-
 # ------------------------set screen properties--------------------------#
-screenSize = width, height = 1100, 800
+screenSize = width, height = 1200, 800
 darkGreen = 50, 122, 14 # for background
 
 # ---------------------------setting up deck-----------------------------#
@@ -265,8 +276,8 @@ random.shuffle(deck)
 # ----------------------setting up the tableau-------------------------#
 # create 7 piles from shuffled deck
 piles = []
-pilePosX = 80
-pilePosY = 100
+pilePosX = 200
+pilePosY = 50
 numberOfPiles = 7
 numberOfCards = 1
 for pileNumber in range(numberOfPiles):
@@ -299,21 +310,21 @@ for pileNumber in range(numberOfPiles):
 movingPile = MovingPile()
 
 # place remining cards in stock pile
-stockPile = StockPile(deck)
+stockPile = StockPile(deck, posX=50, posY=20)
 stockPile.update()
 
 # create a pile to place cards pulled from the stock (initially empty)
-wastePile = WastePile([], 0, 200)
+wastePile = WastePile([], posX=50, posY=200)
 
 # create 4 foundation piles that represent the 4 suits that need to be 
 foundationPiles = []
 pilePosX = 100
-pilePosY = 670
+pilePosY = 620
 numberOfSuits = 4
 for _ in range(numberOfSuits):
-    pass
-
-    
+    newPile = FoundationPile([], pilePosX, pilePosY)
+    foundationPiles.append(newPile)
+    pilePosX += Pile.pileSpacing
 
 # set screen and clock
 screen = pygame.display.set_mode(screenSize)
@@ -328,23 +339,31 @@ while True:
             sys.exit()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
+            # card(s) potentially moving from stock pile to waste pile
             wastePile.handleMouseDown(stockPile)
-            for pile in piles:
-                movingPile.handleMouseDown(pile)
+
+            # card(s) potentially moving from main pile to moving pile
+            for pile in piles: movingPile.handleMouseDown(pile)
+
+            # card(s) potentially moving from waste pile to moving pile
             movingPile.handleMouseDown(wastePile)
+
+            # card(s) potentially moving from foundation pile to moving pile
+            for pile in foundationPiles: movingPile.handleMouseDown(pile)
 
         if event.type == pygame.MOUSEMOTION and movingPile.pile:
             movingPile.handleMouseMotion()
 
         if event.type == pygame.MOUSEBUTTONUP and movingPile.pile:
-            movingPile.handleMouseUp(piles)
+            # handle potential pile placements on the main and foundation piles
+            movingPile.handleMouseUp(piles + foundationPiles)
 
     # render
     screen.fill(darkGreen)
-    for pile in piles:
-        pile.draw(screen)
+    for pile in piles: pile.draw(screen)
     stockPile.draw(screen)
     wastePile.draw(screen)
+    for pile in foundationPiles: pile.draw(screen)
     movingPile.draw(screen)
     pygame.display.flip()
 
