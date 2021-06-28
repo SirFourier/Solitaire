@@ -66,13 +66,14 @@ class Pile:
     cardSpacing = 36
     pileSpacing = 140
 
-    # set empty pile slot
-    emptyPileSlotImage = loadImage(f"{Card.imagePath}/empty_pile_slot.png", Card.size)
+    # set empty pile image
+    emptyPileImage = loadImage(f"{Card.imagePath}/empty_pile_slot.png", Card.size)
 
     def __init__(self, pile=[], posX=0, posY=0):
         self.posX = posX
         self.posY = posY
         self.pile = pile 
+        self.emptyPileRect = pygame.Rect(posX, posY, Card.size[0], Card.size[1])
 
     def update(self):
         # update positions of the cards
@@ -87,9 +88,8 @@ class Pile:
             for card in self.pile:
                 card.draw(screen)
         else: 
-            # draw empty pile slot
-            rect = pygame.Rect(self.posX, self.posY, Card.size[0], Card.size[1])
-            screen.blit(Pile.emptyPileSlotImage, rect)
+            # draw empty pile image
+            screen.blit(Pile.emptyPileImage, self.emptyPileRect)
 
 
 # When pile is being dragged by cursor
@@ -163,6 +163,22 @@ class MovingPile(Pile):
 
                             break
 
+            # else if empty pile overlaps
+            elif self.pile[0].rect.colliderect(pile.emptyPileRect):
+                # only a king can be placed in empty pile
+                if self.pile[0].number == 13:
+                    # add moving pile to empty pile
+                    pile.pile.extend(self.pile)
+                    pile.update()
+                    pileSelected = True
+
+                    # if there is a pile in the previous pile
+                    if self.previousPile.pile:
+                        # flip the last card face up
+                        self.previousPile.pile[-1].faceUp = True
+
+                    break
+
         if not pileSelected:
             # return the moving pile to the previous pile
             self.previousPile.pile.extend(self.pile)
@@ -219,8 +235,17 @@ class WastePile(Pile):
             card.rect.y = self.posY
 
 
-class FoundationPile(Pile):
-    pass
+# completing 4 of these piles (1 for each suit) will win the game
+# Foundation pile
+class FoundationPile(WastePile):
+
+    def update(self):
+        # update positions of the cards
+        for card in self.pile:
+            card.rect.x = self.posX
+            card.rect.y = self.posY
+
+    
 
 # ------------------------set screen properties--------------------------#
 screenSize = width, height = 1100, 800
@@ -279,6 +304,16 @@ stockPile.update()
 
 # create a pile to place cards pulled from the stock (initially empty)
 wastePile = WastePile([], 0, 200)
+
+# create 4 foundation piles that represent the 4 suits that need to be 
+foundationPiles = []
+pilePosX = 100
+pilePosY = 670
+numberOfSuits = 4
+for _ in range(numberOfSuits):
+    pass
+
+    
 
 # set screen and clock
 screen = pygame.display.set_mode(screenSize)
