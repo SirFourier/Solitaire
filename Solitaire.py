@@ -4,7 +4,7 @@ import sys
 import pygame
 import random
 
-# initialise pygame
+# initialise pygame modules
 pygame.init()
 
 # load and scale image to new size
@@ -26,12 +26,16 @@ class Card:
     cardbackImage = loadImage(f"{imagePath}/cardback.png", size)
 
     def __init__(self, number, suit):
+        # set main card attributes
         self.number = number
         self.suit = suit
         self.colour = Card.getColour(suit)
+
+        # set image attributes
+        self.__faceUp = False
         self.image = loadImage(f"{Card.imagePath}/{number}_of_{suit}.png", Card.size)
+        self.imageBuffer = Card.cardbackImage
         self.rect = self.image.get_rect()
-        self.faceUp = False
         
     @staticmethod
     def getColour(suit):
@@ -39,30 +43,35 @@ class Card:
             return "black"
         return "red"
 
+    @property
+    def faceUp(self):
+        return self.__faceUp
+
+    @faceUp.setter
+    def faceUp(self, faceUp):
+        self.__faceUp = faceUp
+        # if set face up, change buffer image to card image
+        if self.__faceUp:
+            self.imageBuffer = self.image
+        else:
+            self.imageBuffer = Card.cardbackImage
+
     @staticmethod    
     def oppositeColour(card1, card2):
         # return true if the two cards have opposite colours
-        if card1.colour == card2.colour:
-            return False
-        return True
+        return card1.colour != card2.colour
 
     @staticmethod
     def validNumber(card1, card2):
         # return true if card 2 is valued 1 less than card 1
-        if card2.number == card1.number - 1:
-            return True
-        return False
+        return card2.number == card1.number - 1
 
     def draw(self, screen):
-        # draws image or cardback depending if face up or not
-        image = self.cardbackImage
-        if self.faceUp:
-            image = self.image
-        screen.blit(image, self.rect)
+        screen.blit(self.imageBuffer, self.rect)
 
 # pile class containing cards
 class Pile:
-    # pile and card spacing for where to place them on the screen
+    # pile and card spacing to define gaps between cards
     cardSpacing = 36
     pileSpacing = 140
 
@@ -72,7 +81,7 @@ class Pile:
     def __init__(self, pile=[], posX=0, posY=0):
         self.posX = posX
         self.posY = posY
-        self.pile = pile 
+        self.pile = pile
         self.emptyPileRect = pygame.Rect(posX, posY, Card.size[0], Card.size[1])
 
     def update(self):
@@ -82,7 +91,7 @@ class Pile:
             card.rect.y = self.posY + Pile.cardSpacing * index
 
     def draw(self, screen):
-        # if pile is exists
+        # if pile exists
         if self.pile:
             # draw cards
             for card in self.pile:
@@ -91,12 +100,10 @@ class Pile:
             # draw empty pile image
             screen.blit(Pile.emptyPileImage, self.emptyPileRect)
 
-
 # Contains the remaining cards after setting up the tableau
 class StockPile(Pile):
-
     def update(self):
-        # update positions of the cards
+        # update positions of the cards when being placed back in to stock pile
         for card in self.pile:
             card.faceUp = False
             card.rect.x = self.posX
@@ -116,9 +123,6 @@ class WastePile(Pile):
                 self.pile[-1].faceUp = True
                 self.update()
 
-                # track position of mouse
-                self.prevMouseX = mouseX
-                self.prevMouseY = mouseY
             else:
                 # return waste pile to stock pile
                 self.pile.reverse()
@@ -130,14 +134,13 @@ class WastePile(Pile):
 
     # overwrite update method
     def update(self):
-        # update positions of the cards
+    # update positions of the cards
         for card in self.pile:
             card.faceUp = True
             card.rect.x = self.posX
             card.rect.y = self.posY
 
 # completing 4 of these piles (1 for each suit) will win the game
-# Foundation pile
 class FoundationPile(WastePile):
     # overwrite update method
     def update(self):
@@ -209,7 +212,7 @@ class MovingPile(Pile):
                             if self.pile[0].number == pile.pile[-1].number + 1:
                                 pileSelected = pile
                                 break
-                    # else normal pil 
+                    # else normal pile
                     else:
                         # check if opposite colours
                         if Card.oppositeColour(self.pile[0], pile.pile[-1]):
@@ -252,7 +255,7 @@ class MovingPile(Pile):
         # clear held card/pile held
         self.pile.clear()
 
-    # overwrite update method
+    # overwrite draw method
     def draw(self, screen):
         # create seperate draw method to avoid drawing empty card slot
         if self.pile:
@@ -319,7 +322,7 @@ wastePile = WastePile([], posX=50, posY=200)
 # create 4 foundation piles that represent the 4 suits that need to be 
 foundationPiles = []
 pilePosX = 100
-pilePosY = 620
+pilePosY = 640
 numberOfSuits = 4
 for _ in range(numberOfSuits):
     newPile = FoundationPile([], pilePosX, pilePosY)
@@ -343,13 +346,15 @@ while True:
             wastePile.handleMouseDown(stockPile)
 
             # card(s) potentially moving from main pile to moving pile
-            for pile in piles: movingPile.handleMouseDown(pile)
+            for pile in piles: 
+                movingPile.handleMouseDown(pile)
 
             # card(s) potentially moving from waste pile to moving pile
             movingPile.handleMouseDown(wastePile)
 
             # card(s) potentially moving from foundation pile to moving pile
-            for pile in foundationPiles: movingPile.handleMouseDown(pile)
+            for pile in foundationPiles: 
+                movingPile.handleMouseDown(pile)
 
         if event.type == pygame.MOUSEMOTION and movingPile.pile:
             movingPile.handleMouseMotion()
@@ -361,9 +366,9 @@ while True:
     # render
     screen.fill(darkGreen)
     for pile in piles: pile.draw(screen)
+    for pile in foundationPiles: pile.draw(screen)
     stockPile.draw(screen)
     wastePile.draw(screen)
-    for pile in foundationPiles: pile.draw(screen)
     movingPile.draw(screen)
     pygame.display.flip()
 
