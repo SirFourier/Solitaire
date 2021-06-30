@@ -7,6 +7,9 @@ import random
 # initialise pygame modules
 pygame.init()
 
+# rename caption
+pygame.display.set_caption("Solitaire")
+
 # load and scale image to new size
 def loadImage(path, newSize=None):
     image = pygame.image.load(path)
