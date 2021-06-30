@@ -36,7 +36,7 @@ class Card:
         self.image = loadImage(f"{Card.imagePath}/{number}_of_{suit}.png", Card.size)
         self.imageBuffer = Card.cardbackImage
         self.rect = self.image.get_rect()
-        
+
     @staticmethod
     def getColour(suit):
         if suit == "clubs" or suit == "spades":
@@ -55,16 +55,14 @@ class Card:
             self.imageBuffer = self.image
         else:
             self.imageBuffer = Card.cardbackImage
+  
+    def isOppositeColourTo(self, card):
+        # return true if different colours
+        return self.colour != card.colour
 
-    @staticmethod    
-    def oppositeColour(card1, card2):
-        # return true if the two cards have opposite colours
-        return card1.colour != card2.colour
-
-    @staticmethod
-    def validNumber(card1, card2):
-        # return true if card 2 is valued 1 less than card 1
-        return card2.number == card1.number - 1
+    def isOneMoreThan(self, card):
+        # return true if this card is valued 1 more
+        return self.number + 1 == card.number
 
     def draw(self, screen):
         screen.blit(self.imageBuffer, self.rect)
@@ -215,9 +213,9 @@ class MovingPile(Pile):
                     # else normal pile
                     else:
                         # check if opposite colours
-                        if Card.oppositeColour(self.pile[0], pile.pile[-1]):
+                        if self.pile[0].isOppositeColourTo(pile.pile[-1]):
                             # check if last card of stationary pile is valued 1 more
-                            if Card.validNumber(pile.pile[-1], self.pile[0]):
+                            if self.pile[0].isOneMoreThan(pile.pile[-1]):
                                 pileSelected = pile
                                 break
 
@@ -261,80 +259,115 @@ class MovingPile(Pile):
         if self.pile:
             Pile.draw(self, screen)
 
+# --------------------------------buttons--------------------------------#
+# reset button
+class ResetButton:
+
+    size = width, height = 150, 50
+
+    def __init__(self, posX, posY):
+        self.image = loadImage(f"{Card.imagePath}/reset.png", ResetButton.size)
+        self.rect = self.image.get_rect()
+        self.rect.x = posX
+        self.rect.y = posY
+
+    # return true if pressed
+    def handleMouseDown(self):
+        mouseX, mouseY = pygame.mouse.get_pos()
+        return self.rect.collidepoint(mouseX, mouseY)
+
+    def draw(self, screen):
+        screen.blit(self.image, self.rect)
+
 # ------------------------set screen properties--------------------------#
 screenSize = width, height = 1200, 800
 darkGreen = 50, 122, 14 # for background
-
-# ---------------------------setting up deck-----------------------------#
-# create deck
-deck = []
-for suit in Card.suits:
-    # 1 = ace, 11 = jack, 12 = queen, 13 = king
-    for number in range(1, 14):
-        deck.append(Card(number, suit))
-
-# shuffle deck
-random.shuffle(deck)
-
-# ----------------------setting up the tableau-------------------------#
-# create 7 piles from shuffled deck
-piles = []
-pilePosX = 200
-pilePosY = 50
-numberOfPiles = 7
-numberOfCards = 1
-for pileNumber in range(numberOfPiles):
-    # keep track of how many face downs have been placed
-    faceDownCounter = 0
-    # create new pile object
-    newPile = Pile([], pilePosX, pilePosY)
-
-    # iterate through pile of cards
-    for cardNumber in range(numberOfCards):
-        card = deck.pop()
-
-        # turn card face up if card number is greater or equal to pile number
-        if cardNumber >= pileNumber:
-            card.faceUp = True
-        
-        newPile.pile.append(card)
-
-    # update positions of cards based on position of the pile
-    newPile.update()
-    piles.append(newPile)
-
-    # move position of next pile in the x direction
-    pilePosX += Pile.pileSpacing
-
-    # next pile has 1 more card
-    numberOfCards += 1
-
-# create a moving pile (intially empty)
-movingPile = MovingPile()
-
-# place remining cards in stock pile
-stockPile = StockPile(deck, posX=50, posY=20)
-stockPile.update()
-
-# create a pile to place cards pulled from the stock (initially empty)
-wastePile = WastePile([], posX=50, posY=200)
-
-# create 4 foundation piles that represent the 4 suits that need to be 
-foundationPiles = []
-pilePosX = 100
-pilePosY = 640
-numberOfSuits = 4
-for _ in range(numberOfSuits):
-    newPile = FoundationPile([], pilePosX, pilePosY)
-    foundationPiles.append(newPile)
-    pilePosX += Pile.pileSpacing
 
 # set screen and clock
 screen = pygame.display.set_mode(screenSize)
 clock = pygame.time.Clock()
 
+# initialise piles to none
+piles = None
+foundationPiles = None
+movingPile = None
+stockPile = None
+wastePile = None
+resetButton = None
+
+# set reset flag to true to begin with to set up game
+reset = True
+
 # ---------------------------main game loop------------------------------#
 while True:
+    if reset:
+        # create deck
+        deck = []
+        for suit in Card.suits:
+            # 1 = ace, 11 = jack, 12 = queen, 13 = king
+            for number in range(1, 14):
+                deck.append(Card(number, suit))
+
+        # shuffle deck
+        random.shuffle(deck)
+
+        # create 7 piles from shuffled deck
+        piles = []
+        pilePosX = 200
+        pilePosY = 50
+        numberOfPiles = 7
+        numberOfCards = 1
+        for pileNumber in range(numberOfPiles):
+            # keep track of how many face downs have been placed
+            faceDownCounter = 0
+            # create new pile object
+            newPile = Pile([], pilePosX, pilePosY)
+
+            # iterate through pile of cards
+            for cardNumber in range(numberOfCards):
+                card = deck.pop()
+
+                # turn card face up if card number is greater or equal to pile number
+                if cardNumber >= pileNumber:
+                    card.faceUp = True
+                
+                newPile.pile.append(card)
+
+            # update positions of cards based on position of the pile
+            newPile.update()
+            piles.append(newPile)
+
+            # move position of next pile in the x direction
+            pilePosX += Pile.pileSpacing
+
+            # next pile has 1 more card
+            numberOfCards += 1
+
+        # create a moving pile (intially empty)
+        movingPile = MovingPile()
+
+        # place remining cards in stock pile
+        stockPile = StockPile(deck, posX=50, posY=20)
+        stockPile.update()
+
+        # create a pile to place cards pulled from the stock (initially empty)
+        wastePile = WastePile([], posX=50, posY=200)
+
+        # create 4 foundation piles that represent the 4 suits that need to be 
+        foundationPiles = []
+        pilePosX = 100
+        pilePosY = 640
+        numberOfSuits = 4
+        for _ in range(numberOfSuits):
+            newPile = FoundationPile([], pilePosX, pilePosY)
+            foundationPiles.append(newPile)
+            pilePosX += Pile.pileSpacing
+
+        # create reset button
+        resetButton = ResetButton(posX=700, posY=690)
+
+        reset = False
+
     # Handle events
     for event in pygame.event.get():
         if event.type == pygame.QUIT: 
@@ -342,6 +375,9 @@ while True:
             sys.exit()
 
         if event.type == pygame.MOUSEBUTTONDOWN:
+            # handle reset button
+            reset = resetButton.handleMouseDown()
+            
             # card(s) potentially moving from stock pile to waste pile
             wastePile.handleMouseDown(stockPile)
 
@@ -369,6 +405,7 @@ while True:
     for pile in foundationPiles: pile.draw(screen)
     stockPile.draw(screen)
     wastePile.draw(screen)
+    resetButton.draw(screen)
     movingPile.draw(screen)
     pygame.display.flip()
 
